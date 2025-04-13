@@ -1,4 +1,4 @@
-# MemScope README
+# MemScope
 
 MemScope can preview image data loaded in memory during debugging.
 
