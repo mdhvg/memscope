@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Memscope</title>
+    <style>
+      body {
+        color: var(--vscode-foreground);
+        background-color: var(--vscode-editor-background);
+        font-family: var(--vscode-font-family);
+        font-size: var(--vscode-font-size);
+        padding: 1em;
+      }
+
+      input,
+      button {
+        background-color: var(--vscode-input-background);
+        color: var(--vscode-input-foreground);
+        border: 1px solid var(--vscode-input-border);
+        padding: 0.25em 0.5em;
+        margin: 0.25em 0.5em 0.25em 0;
+        font-size: inherit;
+      }
+
+      button {
+        background-color: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border: none;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: var(--vscode-button-hoverBackground);
+      }
+      canvas {
+        border: 1px solid var(--vscode-editorWidget-border);
+        display: block;
+        margin-top: 1em;
+        max-width: 100%;
+        min-width: 70%;
+        height: auto;
+        margin: 2rem auto 2rem auto;
+      }
+      .interface {
+        display: flex;
+        flex-direction: column;
+      }
+      .button-container {
+        max-width: fit-content;
+      }
+      #error-box {
+        margin: 1rem 0 1rem 0;
+        color: red;
+        font-size: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Memscope</h2>
+    <div class="interface">
+      <label>
+        Pointer:
+        <input id="ptr" placeholder="Enter expression" />
+      </label>
+      <label>
+        Width:
+        <input id="width" placeholder="number or expression" />
+      </label>
+      <label>
+        Height:
+        <input id="height" placeholder="number or expression" />
+      </label>
+      <label>
+        Channels:
+        <input id="channels" placeholder="number or expression" />
+      </label>
+      <label> <input type="checkbox" id="live" checked /> Live Preview </label>
+      <div class="button-container">
+        <button onclick="fetchImage()">Draw</button>
+        <button onclick="copyToClipboard()">Copy</button>
+        <button onclick="saveImage('png')">Save PNG</button>
+        <button onclick="saveImage('jpg')">Save JPG</button>
+      </div>
+    </div>
+    <label id="error-box"></label>
+    <canvas id="canvas" width="256" height="256"></canvas>
+    <script src="{{baseUri}}/panel.js"></script>
+  </body>
+</html>
