@@ -1,8 +1,10 @@
 {
-  "name": "mdhvg-memscope",
+  "name": "memscope",
   "displayName": "MemScope",
   "description": "View images in memory while debugging.",
+  "repository": "https://github.com/mdhvg/memscope",
   "version": "0.0.1",
+  "publisher": "mdhvg",
   "engines": {
     "vscode": "^1.97.0"
   },
