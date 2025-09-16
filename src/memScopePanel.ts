@@ -73,12 +73,14 @@ export class MemScopePanel {
         const height = parseInt(await evaluate(msg.heightExpr));
         const pointerStr = (await evaluate(msg.pointerExpr)).split(" ")[0];
         const channels = parseInt(msg.channels || '1');
-        const count = width * height * channels;
+        const datatype = msg.datatype || 'uint8';
+        const typeSize = msg.typeSize || 1;
+        const count = width * height * channels * typeSize;
 
         if (pointerStr === '-var-create:') { throw new Error("Invalid pointer"); }
         if (isNaN(count) || count <= 0) { throw new Error("Invalid image dimensions"); }
 
-        console.log({ pointerStr, width, height, channels, count });
+        console.log({ pointerStr, width, height, channels, datatype, typeSize, count });
 
         const memory = await session.customRequest('readMemory', {
           memoryReference: pointerStr,
@@ -92,7 +94,9 @@ export class MemScopePanel {
           buffer: [...raw],
           width,
           height,
-          channels
+          channels,
+          datatype,
+          typeSize
         });
 
       } catch (err: any) {

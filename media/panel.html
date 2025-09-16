@@ -54,6 +54,16 @@
         color: red;
         font-size: inherit;
       }
+      .datatype {
+        border: 1px solid var(--vscode-editorWidget-border);
+        background-color: var(--vscode-editor-background);
+      }
+      .datatype:hover {
+        background-color: var(--vscode-button-hoverBackground);
+      }
+      .datatype.selected {
+        background-color: var(--vscode-button-background);
+      }
     </style>
   </head>
   <body>
@@ -75,6 +85,29 @@
         Channels:
         <input id="channels" placeholder="number or expression" />
       </label>
+      <div id="datatype-container">
+        <label>Datatype:</label>
+        <span class="datatype-buttons">
+          <button class="datatype selected" data-type="uint" data-size="1">
+            uint8
+          </button>
+          <button class="datatype" data-type="int" data-size="1">int8</button>
+          <button class="datatype" data-type="uint" data-size="2">
+            uint16
+          </button>
+          <button class="datatype" data-type="int" data-size="2">int16</button>
+          <button class="datatype" data-type="int" data-size="4">int32</button>
+          <button class="datatype" data-type="float" data-size="4">
+            float32
+          </button>
+          <button class="datatype" data-type="float" data-size="8">
+            float64
+          </button>
+          <button class="datatype" data-type="float" data-size="2">
+            float16
+          </button>
+        </span>
+      </div>
       <label> <input type="checkbox" id="live" checked /> Live Preview </label>
       <div class="button-container">
         <button onclick="fetchImage()">Draw</button>
