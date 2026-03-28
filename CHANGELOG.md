@@ -2,6 +2,13 @@
 
 All notable changes to the "mdhvg-memscope" extension will be documented in this file.
 
+## [1.1.0] - 2026-03-28
+
+### Changes
+
+- **Improved loading speed**: Switched to batched loading of image bytes from memory.
+- **Fix [#2](https://github.com/mdhvg/memscope/issues/2)**: Replaced buggy formula for canvas image display.
+
 ## [1.0.2] - 2025-09-16
 
 ### Added

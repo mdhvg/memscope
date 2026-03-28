@@ -7,6 +7,8 @@ export class MemScopePanel {
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
   private disposables: vscode.Disposable[] = [];
+  private currentRequestId: number = 0;
+  private abortController: AbortController | null = null;
 
   public static createOrShow(context: vscode.ExtensionContext) {
     const column = vscode.ViewColumn.Beside;
@@ -46,12 +48,31 @@ export class MemScopePanel {
 
   private async handleMessage(msg: any) {
     if (msg.command === 'fetch') {
+      // Cancel previous request
+      if (this.abortController) {
+        this.abortController.abort();
+      }
+
+      this.abortController = new AbortController();
+      const signal = this.abortController.signal;
+      const isCancelled = () => signal.aborted;
+
       try {
         const session = vscode.debug.activeDebugSession;
-        if (!session) { throw new Error("No active debug session!"); }
+        if (!session) {
+          throw new Error("No active debug session!");
+        }
+
+        if (isCancelled()) {
+          return;
+        }
 
         const threads = await session.customRequest('threads');
         const threadId = threads.threads[0].id;
+
+        if (isCancelled()) {
+          return;
+        }
 
         const stack = await session.customRequest('stackTrace', {
           threadId,
@@ -60,7 +81,11 @@ export class MemScopePanel {
         });
         const frameId = stack.stackFrames[0].id;
 
-        const evaluate = async (expr: string) => {
+        if (isCancelled()) {
+          return;
+        }
+
+        const getValue = async (expr: string) => {
           const res = await session.customRequest('evaluate', {
             expression: expr,
             frameId,
@@ -69,39 +94,70 @@ export class MemScopePanel {
           return res.result;
         };
 
-        const width = parseInt(await evaluate(msg.widthExpr));
-        const height = parseInt(await evaluate(msg.heightExpr));
-        const pointerStr = (await evaluate(msg.pointerExpr)).split(" ")[0];
-        const channels = parseInt(msg.channels || '1');
+        const getPtr = async (expr: string) => {
+          const res = await session.customRequest('evaluate', {
+            expression: expr,
+            frameId,
+            context: 'watch'
+          });
+          return res.memoryReference;
+        };
+
+        const width = parseInt(await getValue(msg.widthExpr));
+        const height = parseInt(await getValue(msg.heightExpr));
+        const channels = parseInt(await getValue(msg.channels));
         const datatype = msg.datatype || 'uint8';
         const typeSize = msg.typeSize || 1;
         const count = width * height * channels * typeSize;
 
-        if (pointerStr === '-var-create:') { throw new Error("Invalid pointer"); }
-        if (isNaN(count) || count <= 0) { throw new Error("Invalid image dimensions"); }
+        if (isNaN(count) || count <= 0) {
+          throw new Error("Invalid image dimensions");
+        }
 
-        console.log({ pointerStr, width, height, channels, datatype, typeSize, count });
+        if (isCancelled()) {
+          return;
+        }
 
-        const memory = await session.customRequest('readMemory', {
-          memoryReference: pointerStr,
-          count
-        });
+        const rowsPerChunk = 100;
+        const bytesPerRow = width * channels * typeSize;
+        const maxChunkSize = bytesPerRow * rowsPerChunk;
 
-        const raw = Buffer.from(memory.data, 'base64');
+        for (let i = 0; i < count; i += maxChunkSize) {
+          const currentReadSize = Math.min(maxChunkSize, count - i);
 
-        this.panel.webview.postMessage({
-          command: 'render',
-          buffer: [...raw],
-          width,
-          height,
-          channels,
-          datatype,
-          typeSize
-        });
+          const elementOffset = i / typeSize;
+          const pointerStr = (await getPtr(`${msg.pointerExpr} + ${elementOffset}`) || '0');
+
+          if (isCancelled()) { return; }
+
+          const memory = await session.customRequest('readMemory', {
+            memoryReference: pointerStr,
+            count: currentReadSize
+          });
+
+          const uint8Array = new Uint8Array(Buffer.from(memory.data, 'base64'));
+
+          this.panel.webview.postMessage({
+            command: 'render',
+            memory: uint8Array.buffer,
+            width,
+            height,
+            channels,
+            datatype,
+            typeSize,
+            // StartRow tells the webview where to begin drawing this block
+            startRow: Math.floor(i / bytesPerRow),
+            totalChunks: Math.ceil(count / maxChunkSize),
+            requestID: msg.requestID
+          });
+        }
 
       } catch (err: any) {
-        this.panel.webview.postMessage({ command: 'error', message: err.message || String(err) });
+        if (!signal.aborted) {
+          this.panel.webview.postMessage({ command: 'error', message: err.message || String(err), requestID: msg.requestID });
+        }
       }
+      this.abortController = null;
     }
   }
 

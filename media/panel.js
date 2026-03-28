@@ -106,6 +106,7 @@ const vscode = acquireVsCodeApi();
 
 let selectedDatatype = 'uint';
 let selectedTypeSize = 1;
+let requestID = 0;
 
 document.querySelectorAll('.datatype').forEach(button => {
     button.addEventListener('click', () => {
@@ -115,7 +116,8 @@ document.querySelectorAll('.datatype').forEach(button => {
         selectedDatatype = button.getAttribute('data-type');
         selectedTypeSize = parseInt(button.getAttribute('data-size'), 10);
 
-        if (document.getElementById('live').checked) { fetchImage(); }
+        if (document.getElementById('live').checked)
+            fetchImage();
     });
 });
 
@@ -127,7 +129,8 @@ function fetchImage() {
         heightExpr: document.getElementById('height').value,
         channels: document.getElementById('channels').value,
         datatype: selectedDatatype,
-        typeSize: selectedTypeSize
+        typeSize: selectedTypeSize,
+        requestID: requestID++,
     });
 }
 
@@ -205,69 +208,66 @@ function computeMinMax(arr) {
     return { min, max };
 }
 
+let canvasData = null;
+let canvas = document.getElementById('canvas');
+let ctx = canvas.getContext('2d');
+
 function draw(msg) {
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const { width, height, buffer, channels, datatype, typeSize } = msg;
+    const { width, height, memory, channels, datatype, typeSize, startRow } = msg;
 
-    let buf = new ArrayBuffer(buffer.length);
-    let bufView = new Uint8Array(buf);
-    bufView.set(buffer);
+    if (startRow === 0 || !canvasData) {
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = width;
+        canvas.height = height;
+        canvasData = ctx.createImageData(width, height);
+        buf32 = new Uint32Array(canvasData.data.buffer);
+    }
 
-    canvas.width = width;
-    canvas.height = height;
+    const typedBuffer = parseBuffer(memory, datatype, typeSize);
+    const { min, max } = computeMinMax(typedBuffer);
 
-    canvas.style.width = width;
-    canvas.style.height = 'auto';
+    const totalPixelsInChunk = typedBuffer.length / channels;
+    const startPixelIndex = startRow * width;
 
-    const imageData = ctx.createImageData(width, height);
-    const data = imageData.data;
+    for (let p = 0; p < totalPixelsInChunk; p++) {
+        const bIdx = p * channels;
+        const canvasIdx = startPixelIndex + p;
 
-    let typedBuffer = parseBuffer(buf, datatype, typeSize);
-    let { min: minV, max: maxV } = computeMinMax(typedBuffer);
-
-    if (channels === 4) {
-        for (let i = 0, j = 0; i < width * height; i++, j += channels) {
-            const r = normalizeValue(typedBuffer[j] || 0, datatype, typeSize, maxV, minV);
-            const g = normalizeValue(typedBuffer[j + 1] || r, datatype, typeSize, maxV, minV);
-            const b = normalizeValue(typedBuffer[j + 2] || r, datatype, typeSize, maxV, minV);
-            const a = normalizeValue(typedBuffer[j + 3] || 255, datatype, typeSize, maxV, minV);
-            data[i * 4 + 0] = r;
-            data[i * 4 + 1] = g;
-            data[i * 4 + 2] = b;
-            data[i * 4 + 3] = a;
-        }
-    } else if (channels === 3) {
-        for (let i = 0, j = 0; i < width * height; i++, j += channels) {
-            const r = normalizeValue(typedBuffer[j] || 0, datatype, typeSize, maxV, minV);
-            const g = normalizeValue(typedBuffer[j + 1] || r, datatype, typeSize, maxV, minV);
-            const b = normalizeValue(typedBuffer[j + 2] || r, datatype, typeSize, maxV, minV);
-            data[i * 4 + 0] = r;
-            data[i * 4 + 1] = g;
-            data[i * 4 + 2] = b;
-            data[i * 4 + 3] = 255;
-        }
-    } else if (channels === 2) {
-        for (let i = 0, j = 0; i < width * height; i++, j += channels) {
-            const r = normalizeValue(typedBuffer[j] || 0, datatype, typeSize, maxV, minV);
-            const g = normalizeValue(typedBuffer[j + 1] || r, datatype, typeSize, maxV, minV);
-            data[i * 4 + 0] = r;
-            data[i * 4 + 1] = g;
-            data[i * 4 + 2] = g;
-            data[i * 4 + 3] = 255;
-        }
-    } else {
-        // grayscale
-        for (let i = 0; i < width * height; i++) {
-            const v = normalizeValue(typedBuffer[i] || 0, datatype, typeSize, maxV, minV);
-            data[i * 4 + 0] = v;
-            data[i * 4 + 1] = v;
-            data[i * 4 + 2] = v;
-            data[i * 4 + 3] = 255;
+        switch (channels) {
+            case 4: {
+                const r = normalizeValue(typedBuffer[bIdx + 0], datatype, typeSize, max, min);
+                const g = normalizeValue(typedBuffer[bIdx + 1], datatype, typeSize, max, min);
+                const b = normalizeValue(typedBuffer[bIdx + 2], datatype, typeSize, max, min);
+                const a = normalizeValue(typedBuffer[bIdx + 3], datatype, typeSize, max, min);
+                buf32[canvasIdx] = (a << 24) | (b << 16) | (g << 8) | r;
+            }
+                break;
+            case 3: {
+                const r = normalizeValue(typedBuffer[bIdx + 0], datatype, typeSize, max, min);
+                const g = normalizeValue(typedBuffer[bIdx + 1], datatype, typeSize, max, min);
+                const b = normalizeValue(typedBuffer[bIdx + 2], datatype, typeSize, max, min);
+                buf32[canvasIdx] = (255 << 24) | (b << 16) | (g << 8) | r;
+            }
+                break;
+            case 2: {
+                const g = normalizeValue(typedBuffer[bIdx + 0], datatype, typeSize, max, min);
+                const a = normalizeValue(typedBuffer[bIdx + 1], datatype, typeSize, max, min);
+                buf32[canvasIdx] = (a << 24) | (g << 16) | (g << 8) | g;
+            }
+                break;
+            case 1: {
+                const g = normalizeValue(typedBuffer[bIdx + 0], datatype, typeSize, max, min);
+                buf32[canvasIdx] = (255 << 24) | (g << 16) | (g << 8) | g;
+            }
+                break;
         }
     }
 
-    ctx.putImageData(imageData, 0, 0);
+    ctx.putImageData(canvasData, 0, 0);
+
+    const rowsInChunk = (memory.byteLength / typeSize) / (width * channels);
+    return Math.min(100, Math.round(((startRow + rowsInChunk) / height) * 100));
 }
 
 function copyToClipboard() {
@@ -292,14 +292,33 @@ function saveImage(format) {
 
 window.addEventListener('message', event => {
     const msg = event.data;
-    const errorBox = document.getElementById("error-box");
-    if (msg.command === 'render') {
-        errorBox.innerText = "";
-        draw(msg);
+    const statusBox = document.getElementById("status-box");
+    if (msg.requestID !== undefined && msg.requestID !== requestID - 1) {
+        return;
     }
-    if (msg.command === 'error') {
-        errorBox.innerText = `Error: ${msg.message}`;
-        clear();
+    switch (msg.command) {
+        case 'render':
+            const progress = draw(msg);
+
+            if (progress >= 100) {
+                statusBox.innerText = "Done (100%)";
+                statusBox.style.color = "green";
+            } else {
+                statusBox.innerText = `Loading: ${progress}%`;
+                statusBox.style.color = "blue";
+            }
+            break;
+        case 'error':
+            statusBox.innerText = `Error: ${msg.message}`;
+            statusBox.style.color = "red";
+            clear();
+            break;
+        case 'status':
+            statusBox.innerText = msg.message;
+            statusBox.style.color = "blue";
+            break;
+        default:
+            statusBox.innerText = "";
     }
 });
 
