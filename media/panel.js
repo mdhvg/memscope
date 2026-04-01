@@ -116,8 +116,9 @@ document.querySelectorAll('.datatype').forEach(button => {
         selectedDatatype = button.getAttribute('data-type');
         selectedTypeSize = parseInt(button.getAttribute('data-size'), 10);
 
-        if (document.getElementById('live').checked)
+        if (document.getElementById('live').checked) {
             fetchImage();
+        }
     });
 });
 
@@ -132,6 +133,16 @@ function fetchImage() {
         typeSize: selectedTypeSize,
         requestID: requestID++,
     });
+}
+
+function requestDraw() {
+    const pause = document.getElementById("pause").checked;
+    if (pause) {
+        vscode.postMessage({
+            command: 'pause',
+        });
+    }
+    fetchImage();
 }
 
 function clear() {
