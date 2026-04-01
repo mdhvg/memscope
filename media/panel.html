@@ -108,9 +108,10 @@
           </button>
         </span>
       </div>
-      <label> <input type="checkbox" id="live" checked /> Live Preview </label>
+      <label><input type="checkbox" id="live" checked />Live Preview</label>
+      <label><input type="checkbox" id="pause" />Pause on draw</label>
       <div class="button-container">
-        <button onclick="fetchImage()">Draw</button>
+        <button onclick="requestDraw()">Draw</button>
         <button onclick="copyToClipboard()">Copy</button>
         <button onclick="saveImage('png')">Save PNG</button>
         <button onclick="saveImage('jpg')">Save JPG</button>
